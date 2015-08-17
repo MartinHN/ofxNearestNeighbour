@@ -48,8 +48,13 @@ namespace itg
         PointCloud<T>,
         T::DIM> KdTree;
         
+        typedef  typename L1_Adaptor<float, PointCloud<T> >::DistanceType DistanceType;
+        
         NearestNeighbour() : kdTree(T::DIM, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */))
         {
+        }
+        void clear(){
+            hasBeenBuilt = false;
         }
         
         void buildIndex(const vector<T>& points)
@@ -71,6 +76,128 @@ namespace itg
             nanoflann::SearchParams params;
             return kdTree.radiusSearch(point.getPtr(), radius * radius, matches, params);
         }
+        
+        void dbscan(vector<int> *classes, int k, double eps,int minNum)
+        {
+            // adapted from https://github.com/arpesenti/peopleTracker/blob/master/dbscanClustering.cpp
+            if(hasBeenBuilt){
+                kdTree.buildIndex();
+                size_t dim = T::DIM;
+                size_t numPoints = cloud.points.size();
+                int C = 0; /* class id assigned to the points in the same cluster */
+                int reserveSize = 50; /* allocation dimension for efficiency reasons */
+                
+                uint8_t *visited = (uint8_t *)calloc(numPoints,sizeof(uint8_t));
+                
+                const double search_radius = static_cast<double>(eps*eps);
+                nanoflann::SearchParams params;
+                params.sorted = false;
+                
+                T queryPoint;
+                
+                queue<int> neigh;
+                std::vector<std::pair<size_t, DistanceType> >  ret_matches;
+                vector<int > backupV(minNum,0);
+                
+                int matches = 0;
+                int n=0;
+                // start clusterization
+                for(int i=0; i<numPoints; i++) {
+                    if(visited[i] == 0) {
+                        ret_matches.clear();
+                        ret_matches.reserve(reserveSize);
+                        queryPoint = cloud.points[i];                    // find the number of neighbors of current processed point
+                        const size_t nMatches = kdTree.radiusSearch(&queryPoint[0], search_radius, ret_matches, params);
+                        visited[i] = 1;
+                        n++;
+                        if(nMatches <k ||
+                           ( std::is_same<T,ofVec3f>::value && ((ofVec3f)queryPoint).lengthSquared()>.26 ) )
+                        {
+                            // outlier
+                            
+                            classes->at(i) = 0;
+                            
+                        } else  {
+                            // core point - start expanding a new cluster
+                            
+                            
+                            C = C+1; /* class id of the new cluster */
+                            
+                            
+                            classes->at(i) = C;
+                            
+                            matches = 1;
+                            backupV[matches-1] = i;
+                            for(int j=0;j<nMatches;j++) {
+                                size_t idx = ret_matches[j].first;
+                                if(visited[idx] == 0 && idx!=i) {
+                                    neigh.push(idx); /* insert neighbors in the neighbors list */
+                                    visited[idx] = 1;
+                                    n++;
+                                }
+                            }
+                            // expand cluster until the neighbors list becomes empty
+                            while(!neigh.empty()) {
+                                int id = neigh.front();
+                                
+                                neigh.pop();
+                                queryPoint = cloud.points[id];
+                                
+                                ret_matches.clear();
+                                ret_matches.reserve(reserveSize);
+                                
+                                // find the number of neighbors of current processed neighbor point
+                                const size_t nMatches = kdTree.radiusSearch(&queryPoint[0], search_radius, ret_matches, params);
+                                
+                                if (nMatches <= k) {
+                                    // border point
+                                    classes->at(id) = -C;
+                                    matches++;
+                                    if(matches < minNum)backupV[matches-1] = id;
+                                    
+                                } else {
+                                    
+                                    for(int j=0;j<nMatches;j++) {
+                                        size_t idx = ret_matches[j].first;
+                                        if(visited[idx] == 0 && idx!=id) {
+                                            neigh.push(idx); /* insert neighbors in the neighbors list */
+                                            visited[idx] = 1;
+                                            n++;
+                                        }
+                                    }
+                                }
+                                
+                                if(classes->at(id) == 0){
+                                    classes->at(id) = C;
+                                    matches++;
+                                    if(matches < minNum)backupV[matches-1] = id;
+                                }
+                                
+                            }
+                            
+                            if(matches < minNum){
+                                for(int j = 0 ; j < matches ; j++){
+                                    classes->at(backupV[j]) = 0;
+                                }
+                            }
+                            
+                            cout<< C<< " : " << matches <<  endl;
+                        }
+                        
+                    }
+                }
+                cout << "visited : " << n << endl;
+                cout << "total : " << numPoints<< endl;
+                
+                free(visited);
+            }
+        }
+        
+    
+        
+        
+        bool hasBeenBuilt = false;
+
         
     private:
         KdTree kdTree;
