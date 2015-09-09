@@ -52,6 +52,7 @@ namespace itg
         
         NearestNeighbour() : kdTree(T::DIM, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */))
         {
+            hasBeenBuilt = false;
         }
         void clear(){
             hasBeenBuilt = false;
@@ -61,20 +62,25 @@ namespace itg
         {
             cloud.points = points;
             if (points.empty()) ofLogError() << "Cannot build index with no points.";
-            else kdTree.buildIndex();
+            else {kdTree.buildIndex();
+                hasBeenBuilt=true;}
         }
         
         void findNClosestPoints(const T& point, unsigned n, vector<size_t>& indices, vector<float>& distsSquared)
         {
+            if(hasBeenBuilt){
             indices.resize(n);
             distsSquared.resize(n);
             kdTree.knnSearch(point.getPtr(), n, &indices[0], &distsSquared[0]);
+            }
         }
         
         unsigned findPointsWithinRadius(const T& point, float radius, vector<pair<size_t, float> >& matches)
         {
+                        if(hasBeenBuilt){
             nanoflann::SearchParams params;
             return kdTree.radiusSearch(point.getPtr(), radius * radius, matches, params);
+                        }
         }
         
         void dbscan(vector<int> *classes, int k, double eps,int minNum)
