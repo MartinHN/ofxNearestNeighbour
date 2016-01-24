@@ -849,7 +849,7 @@ namespace nanoflann
 		KDTreeSingleIndexAdaptor(const int dimensionality, const DatasetAdaptor& inputData, const KDTreeSingleIndexAdaptorParams& params = KDTreeSingleIndexAdaptorParams() ) :
 			dataset(inputData), index_params(params), root_node(NULL), distance(inputData)
 		{
-			m_size = dataset.kdtree_get_point_count();
+//			m_size = dataset.kdtree_get_point_count();
 			dim = dimensionality;
 			if (DIM>0) dim=DIM;
 			else {

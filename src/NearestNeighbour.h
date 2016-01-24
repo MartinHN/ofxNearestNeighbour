@@ -44,13 +44,14 @@ namespace itg
     {
     public:
         typedef KDTreeSingleIndexAdaptor<
-        L2_Simple_Adaptor<float, PointCloud<T> > ,
-        PointCloud<T>,
-        T::DIM> KdTree;
+        L2_Simple_Adaptor<float, MyPointCloud > ,
+        MyPointCloud,
+//        PointCloud<T>,
+        T::ColsAtCompileTime> KdTree;
         
-        typedef  typename L1_Adaptor<float, PointCloud<T> >::DistanceType DistanceType;
+        typedef  typename L1_Adaptor<float, MyPointCloud >::DistanceType DistanceType;
         
-        NearestNeighbour() : kdTree(T::DIM, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */))
+        NearestNeighbour(): kdTree(T::ColsAtCompileTime, cloud, KDTreeSingleIndexAdaptorParams(10 /* max leaf */))
         {
             hasBeenBuilt = false;
         }
@@ -58,10 +59,10 @@ namespace itg
             hasBeenBuilt = false;
         }
         
-        void buildIndex(const vector<T>& points)
+        void buildIndex( MyMatrixType& points)
         {
-            cloud.points = points;
-            if (points.empty()) ofLogError() << "Cannot build index with no points.";
+            cloud.points = &points;
+            if (points.rows()==0) ofLogError() << "Cannot build index with no points.";
             else {kdTree.buildIndex();
                 hasBeenBuilt=true;}
         }
@@ -71,15 +72,15 @@ namespace itg
             if(hasBeenBuilt){
             indices.resize(n);
             distsSquared.resize(n);
-            kdTree.knnSearch(point.getPtr(), n, &indices[0], &distsSquared[0]);
+            kdTree.knnSearch(point.data(), n, &indices[0], &distsSquared[0]);
             }
         }
         
-        unsigned findPointsWithinRadius(const T& point, float radius, vector<pair<size_t, float> >& matches)
+        unsigned findPointsWithinRadius(const T& point, float radius, vector<pair<size_t,  float> >& matches)
         {
                         if(hasBeenBuilt){
             nanoflann::SearchParams params;
-            return kdTree.radiusSearch(point.getPtr(), radius * radius, matches, params);
+            return kdTree.radiusSearch(point.data(), radius * radius, matches, params);
                         }
         }
         
@@ -87,9 +88,9 @@ namespace itg
         {
             // adapted from https://github.com/arpesenti/peopleTracker/blob/master/dbscanClustering.cpp
             if(hasBeenBuilt){
-                kdTree.buildIndex();
+//                kdTree.buildIndex();
                 size_t dim = T::DIM;
-                size_t numPoints = cloud.points.size();
+                size_t numPoints = cloud.points->rows();
                 int C = 0; /* class id assigned to the points in the same cluster */
                 int reserveSize = 50; /* allocation dimension for efficiency reasons */
                 
@@ -207,6 +208,6 @@ namespace itg
         
     private:
         KdTree kdTree;
-        PointCloud<T> cloud;
+        MyPointCloud cloud;
     };
 }
