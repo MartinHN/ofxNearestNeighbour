@@ -31,6 +31,9 @@
  */
 #pragma once
 
+
+#include "Config.h"
+
 namespace itg
 {
     template <typename T>
@@ -69,7 +72,7 @@ namespace itg
         
     };
     
-#include "Config.h"
+
     struct MyPointCloud
     {
         MyMatrixType * points=nullptr;
